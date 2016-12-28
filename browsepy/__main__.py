@@ -49,6 +49,9 @@ class ArgParse(argparse.ArgumentParser):
             default=[],
             help='comma-separated list of plugins')
         self.add_argument('--debug', action='store_true', help='debug mode')
+        self.add_argument('--certfile', type=str)
+        self.add_argument('--keyfile', type=str)
+        self.add_argument('--passwd', type=str)
 
     def _plugin(self, arg):
         return arg.split(',') if arg else []
@@ -68,20 +71,25 @@ def main(argv=sys.argv[1:], app=app, parser=ArgParse, run_fnc=flask.Flask.run):
     plugin_manager = app.extensions['plugin_manager']
     args = plugin_manager.load_arguments(argv, parser())
     os.environ['DEBUG'] = 'true' if args.debug else ''
+    with open(args.passwd, 'r') as f: 
+        passwd = (f.read()[:-1]).split(':')
     app.config.update(
         directory_base=args.directory,
         directory_start=args.initial or args.directory,
         directory_remove=args.removable,
         directory_upload=args.upload,
-        plugin_modules=args.plugin
+        plugin_modules=args.plugin,
+        passwd=passwd
         )
     plugin_manager.reload()
+    context=(args.certfile, args.keyfile)
     run_fnc(
         app,
         host=args.host,
         port=args.port,
         debug=args.debug,
         use_reloader=False,
+        ssl_context=context,
         threaded=True
         )
 

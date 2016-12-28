@@ -37,6 +37,7 @@ app.config.update(
     directory_downloadable=True,
     use_binary_multiples=True,
     plugin_modules=[],
+    passwd='',
     plugin_namespaces=(
         'browsepy.plugin',
         'browsepy_',
@@ -49,6 +50,32 @@ if "BROWSEPY_SETTINGS" in os.environ:
     app.config.from_envvar("BROWSEPY_SETTINGS")
 
 plugin_manager = PluginManager(app)
+
+
+
+from functools import wraps
+def check_auth(username, password):
+    """This function is called to check if a username /
+    password combination is valid.
+    """
+    u, p = app.config['passwd']
+    return username == u and password == p
+
+def authenticate():
+    """Sends a 401 response that enables basic auth"""
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
 
 
 def iter_cookie_browse_sorting():
@@ -142,6 +169,7 @@ def template_globals():
 
 @app.route('/sort/<string:property>', defaults={"path": ""})
 @app.route('/sort/<string:property>/<path:path>')
+@requires_auth
 def sort(property, path):
     try:
         directory = Node.from_urlpath(path)
@@ -171,6 +199,7 @@ def sort(property, path):
 
 @app.route("/browse", defaults={"path": ""})
 @app.route('/browse/<path:path>')
+@requires_auth
 def browse(path):
     sort_property = get_cookie_browse_sorting(path, 'text')
     sort_fnc, sort_reverse = browse_sortkey_reverse(sort_property)
@@ -191,6 +220,7 @@ def browse(path):
 
 
 @app.route('/open/<path:path>', endpoint="open")
+@requires_auth
 def open_file(path):
     try:
         file = Node.from_urlpath(path)
@@ -202,6 +232,7 @@ def open_file(path):
 
 
 @app.route("/download/file/<path:path>")
+@requires_auth
 def download_file(path):
     try:
         file = Node.from_urlpath(path)
@@ -213,6 +244,7 @@ def download_file(path):
 
 
 @app.route("/download/directory/<path:path>.tgz")
+@requires_auth
 def download_directory(path):
     try:
         directory = Node.from_urlpath(path)
@@ -224,6 +256,7 @@ def download_directory(path):
 
 
 @app.route("/remove/<path:path>", methods=("GET", "POST"))
+@requires_auth
 def remove(path):
     try:
         file = Node.from_urlpath(path)
@@ -248,6 +281,7 @@ def remove(path):
 
 @app.route("/upload", defaults={'path': ''}, methods=("POST",))
 @app.route("/upload/<path:path>", methods=("POST",))
+@requires_auth
 def upload(path):
     try:
         directory = Node.from_urlpath(path)
@@ -268,6 +302,7 @@ def upload(path):
 
 
 @app.route("/")
+@requires_auth
 def index():
     path = app.config["directory_start"] or app.config["directory_base"]
     try:
