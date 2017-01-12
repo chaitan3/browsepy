@@ -49,8 +49,8 @@ class ArgParse(argparse.ArgumentParser):
             default=[],
             help='comma-separated list of plugins')
         self.add_argument('--debug', action='store_true', help='debug mode')
-        self.add_argument('--certfile', type=str)
-        self.add_argument('--keyfile', type=str)
+        self.add_argument('--certfile', type=str, default='')
+        self.add_argument('--keyfile', type=str, default='')
         self.add_argument('--passwd', type=str)
 
     def _plugin(self, arg):
@@ -66,13 +66,45 @@ class ArgParse(argparse.ArgumentParser):
             return os.path.abspath(arg)
         self.error('%s is not a valid directory' % arg)
 
+class ReverseProxied(object):
+    '''Wrap the application in this middleware and configure the 
+    front-end server to add these headers, to let you quietly bind 
+    this to a URL other than / and to an HTTP scheme that is 
+    different than what is used locally.
+
+    In nginx:
+    location /myprefix {
+        proxy_pass http://192.168.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Script-Name /myprefix;
+        }
+
+    :param app: the WSGI application
+    '''
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        script_name = environ.get('HTTP_X_SCRIPT_NAME', '')
+        if script_name:
+            environ['SCRIPT_NAME'] = script_name
+            path_info = environ['PATH_INFO']
+            if path_info.startswith(script_name):
+                environ['PATH_INFO'] = path_info[len(script_name):]
+
+        scheme = environ.get('HTTP_X_SCHEME', '')
+        if scheme:
+            environ['wsgi.url_scheme'] = scheme
+        return self.app(environ, start_response)
 
 def main(argv=sys.argv[1:], app=app, parser=ArgParse, run_fnc=flask.Flask.run):
     plugin_manager = app.extensions['plugin_manager']
     args = plugin_manager.load_arguments(argv, parser())
     os.environ['DEBUG'] = 'true' if args.debug else ''
-    with open(args.passwd, 'r') as f: 
-        passwd = (f.read()[:-1]).split(':')
+    passwd = args.passwd.split(':')
+    app.wsgi_app = ReverseProxied(app.wsgi_app)
     app.config.update(
         directory_base=args.directory,
         directory_start=args.initial or args.directory,
@@ -89,7 +121,7 @@ def main(argv=sys.argv[1:], app=app, parser=ArgParse, run_fnc=flask.Flask.run):
         port=args.port,
         debug=args.debug,
         use_reloader=False,
-        ssl_context=context,
+        #ssl_context=context,
         threaded=True
         )
 
