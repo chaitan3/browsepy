@@ -103,7 +103,7 @@ def main(argv=sys.argv[1:], app=app, parser=ArgParse, run_fnc=flask.Flask.run):
     plugin_manager = app.extensions['plugin_manager']
     args = plugin_manager.load_arguments(argv, parser())
     os.environ['DEBUG'] = 'true' if args.debug else ''
-    if len(passwd) > 0:
+    if len(args.passwd) > 0:
         passwd = args.passwd.split(':')
     else:
         passwd = ''
