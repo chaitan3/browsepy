@@ -51,7 +51,7 @@ class ArgParse(argparse.ArgumentParser):
         self.add_argument('--debug', action='store_true', help='debug mode')
         self.add_argument('--certfile', type=str, default='')
         self.add_argument('--keyfile', type=str, default='')
-        self.add_argument('--passwd', type=str)
+        self.add_argument('--passwd', type=str, default='')
 
     def _plugin(self, arg):
         return arg.split(',') if arg else []
@@ -103,7 +103,10 @@ def main(argv=sys.argv[1:], app=app, parser=ArgParse, run_fnc=flask.Flask.run):
     plugin_manager = app.extensions['plugin_manager']
     args = plugin_manager.load_arguments(argv, parser())
     os.environ['DEBUG'] = 'true' if args.debug else ''
-    passwd = args.passwd.split(':')
+    if len(passwd) > 0:
+        passwd = args.passwd.split(':')
+    else:
+        passwd = ''
     app.wsgi_app = ReverseProxied(app.wsgi_app)
     app.config.update(
         directory_base=args.directory,
